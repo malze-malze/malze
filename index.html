@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Słodkie Małże - Gra Pamięciowa</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-image: url('tlo.png'); 
+            background-size: cover; 
+            background-position: center; 
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-color: #f7f9fc; 
+            
+            color: #4a4a4a; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        @media (orientation: portrait) {
+            body {
+                background-size: auto 100vh; 
+                background-position: center center;
+            }
+        }
+
+        .modal-screen {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(255, 235, 240, 0.95); 
+            padding: 30px;
+            border-radius: 25px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
+            text-align: center;
+            z-index: 100;
+            color: #333;
+            backdrop-filter: blur(5px); 
+        }
+
+        .modal-screen h2 {
+            margin-top: 0;
+            font-size: 26px;
+            color: #4a4a4a;
+        }
+
+        .modal-screen input {
+            width: 100%;
+            padding: 12px 15px;
+            margin: 20px 0;
+            border: 2px solid #ffb6c1;
+            border-radius: 15px;
+            font-size: 16px;
+            outline: none;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .modal-screen button.wide-btn {
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            width: 100%;
+        }
+
+        .restart-circle-btn {
+            width: 70px;
+            height: 70px;
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            border-radius: 50%; 
+            font-size: 35px;
+            line-height: 70px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+            transition: transform 0.2s, background-color 0.2s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            z-index: 10;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        #status {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #4a4a4a; 
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8); 
+        }
+
+        #score {
+            font-size: 18px; 
+            font-weight: bold;
+            background: rgba(255, 182, 193, 0.95); 
+            color: #222; 
+            border: 2px solid #ff69b4;
+            padding: 10px 20px;
+            border-radius: 20px; 
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        #game-board {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: none;
+        }
+
+        .game-img {
+            position: absolute;
+            width: 22vw; 
+            height: 22vw;
+            max-width: 120px;
+            max-height: 120px;
+            min-width: 80px;
+            min-height: 80px;
+            cursor: pointer;
+            border-radius: 18px; 
+            transition: transform 0.1s, top 0.3s ease, left 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+            filter: drop-shadow(0px 6px 8px rgba(0,0,0,0.2));
+        }
+
+        .game-img:active {
+            transform: scale(0.92);
+        }
+
+        .best-score-text {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="modal-screen">
+        <h2>Witaj w Grze!</h2>
+        <input type="text" id="player-name" placeholder="Wpisz imię i nazwisko" autocomplete="off">
+        <button id="start-btn" class="wide-btn">START</button>
+    </div>
+
+    <div id="gameover-screen" class="modal-screen" style="display: none;">
+        <h2>Ojej, pomyłka! 😢</h2>
+        <p id="gameover-msg" style="font-size: 18px; margin: 5px 0;"></p>
+        <p id="gameover-time" style="font-size: 16px; margin: 5px 0; color: #ff1493; font-weight: bold;"></p>
+        <p style="margin: 10px 0 5px 0; font-weight: bold; color: #4a4a4a;">Zagraj ponownie</p>
+        <button id="restart-btn" class="restart-circle-btn">↻</button>
+        <div id="gameover-best" class="best-score-text">Najwyższy wynik: 0</div>
+    </div>
+
+    <div id="ui" style="display: none;">
+        <h1 id="status">Zapamiętaj sekwencję!</h1>
+        <div id="score">Gracz | Punkty: 0 | Czas: 00:00 | Rekord: 0</div>
+    </div>
+
+    <div id="game-board"></div>
+
+    <script>
+        const LICZBA_OBRAZKOW = 8; 
+        
+        // TEMPO ZOSTAŁO ZNACZNIE PRZYSPIESZONE
+        const CZAS_PODSWIETLENIA = 300; 
+        const ODSTEP_MIEDZY_BŁYSKAMI = 180; 
+
+        const IMG_CLOSE = 'close.png';
+        const IMG_OPEN = 'open.png';
+
+        const NUTY = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51];
+
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+        const playerNameInput = document.getElementById('player-name');
+        
+        const gameoverScreen = document.getElementById('gameover-screen');
+        const restartBtn = document.getElementById('restart-btn');
+        const gameoverMsg = document.getElementById('gameover-msg');
+        const gameoverTime = document.getElementById('gameover-time');
+        const gameoverBest = document.getElementById('gameover-best');
+
+        const board = document.getElementById('game-board');
+        const uiContainer = document.getElementById('ui');
+        const statusText = document.getElementById('status');
+        const scoreText = document.getElementById('score');
+        
+        let elementy = []; 
+        let sekwencja = []; 
+        let indeksGracza = 0; 
+        let czyMozaKlikac = false; 
+        let punkty = 0;
+        let nazwaGracza = "";
+        let rekord = 0;
+        let audioCtx = null; 
+
+        let lacznyCzasSekundy = 0; 
+        let licznikInterval = null; 
+
+        if (localStorage.getItem('gra_rekord')) {
+            rekord = parseInt(localStorage.getItem('gra_rekord'));
+        }
+
+        if (localStorage.getItem('gra_biezacy_czas')) {
+            lacznyCzasSekundy = parseInt(localStorage.getItem('gra_biezacy_czas'));
+        }
+
+        function formatujCzas(sekundy) {
+            const m = Math.floor(sekundy / 60).toString().padStart(2, '0');
+            const s = (sekundy % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function uruchomLicznikCzasu() {
+            if (licznikInterval) clearInterval(licznikInterval);
+            
+            licznikInterval = setInterval(() => {
+                lacznyCzasSekundy++;
+                localStorage.setItem('gra_biezacy_czas', lacznyCzasSekundy);
+                aktualizujLicznik();
+            }, 1000);
+        }
+
+        function zatrzymajLicznikCzasu() {
+            clearInterval(licznikInterval);
+        }
+
+        function odtworzDzwiekiStworka(czestotliwosc, czyBlad = false) {
+            if (!audioCtx) return;
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const teraz = audioCtx.currentTime;
+                const glosnosc = audioCtx.createGain();
+
+                if (czyBlad) {
+                    const osc = audioCtx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, teraz);
+                    osc.frequency.exponentialRampToValueAtTime(80, teraz + 0.3);
+                    
+                    glosnosc.gain.setValueAtTime(0.3, teraz);
+                    glosnosc.gain.linearRampToValueAtTime(0.001, teraz + 0.3);
+                    
+                    osc.connect(glosnosc);
+                    glosnosc.connect(audioCtx.destination);
+                    osc.start(teraz);
+                    osc.stop(teraz + 0.3);
+                } else {
+                    const realOsc = audioCtx.createOscillator();
+                    
+                    realOsc.type = 'sine';
+                    realOsc.frequency.setValueAtTime(czestotliwosc * 0.6, teraz);
+                    realOsc.frequency.exponentialRampToValueAtTime(czestotliwosc, teraz + 0.04);
+                    
+                    glosnosc.gain.setValueAtTime(0.3, teraz);
+                    glosnosc.gain.exponentialRampToValueAtTime(0.001, teraz + 0.15);
+
+                    const dzwoneczek = audioCtx.createOscillator();
+                    const glosnoscDzwonka = audioCtx.createGain();
+                    dzwoneczek.type = 'triangle';
+                    dzwoneczek.frequency.setValueAtTime(czestotliwosc * 2, teraz);
+                    glosnoscDzwonka.gain.setValueAtTime(0.05, teraz);
+                    glosnoscDzwonka.gain.exponentialRampToValueAtTime(0.001, teraz + 0.2);
+
+                    realOsc.connect(glosnosc);
+                    glosnosc.connect(audioCtx.destination);
+                    
+                    dzwoneczek.connect(glosnoscDzwonka);
+                    glosnoscDzwonka.connect(audioCtx.destination);
+
+                    realOsc.start(teraz);
+                    realOsc.stop(teraz + 0.15);
+                    dzwoneczek.start(teraz);
+                    dzwoneczek.stop(teraz + 0.2);
+                }
+            } catch(e) {
+                console.log("Audio problem:", e);
+            }
+        }
+
+        startBtn.addEventListener('click', () => {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch(e) {
+                console.log("Web Audio API nie jest wspierane");
+            }
+
+            let wpisaneImie = playerNameInput.value.trim();
+            nazwaGracza = wpisaneImie ? wpisaneImie : "Gracz"; 
+            
+            lacznyCzasSekundy = 0;
+            localStorage.setItem('gra_biezacy_czas', 0);
+
+            startScreen.style.display = 'none';
+            uiContainer.style.display = 'block';
+            board.style.display = 'block';
+            
+            uruchomLicznikCzasu();
+            stworzPlansze();
+        });
+
+        restartBtn.addEventListener('click', () => {
+            gameoverScreen.style.display = 'none';
+            uiContainer.style.display = 'block';
+            board.style.display = 'block';
+            
+            uruchomLicznikCzasu();
+            stworzPlansze();
+        });
+
+        function stworzPlansze() {
+            board.innerHTML = '';
+            elementy = [];
+            
+            const jestPion = window.innerHeight > window.innerWidth;
+            
+            const kolumny = jestPion ? 2 : 4;
+            const wiersze = jestPion ? 4 : 2;
+            
+            let dostepnePozycje = [];
+            for (let w = 0; w < wiersze; w++) {
+                for (let k = 0; k < kolumny; k++) {
+                    dostepnePozycje.push({ wiersz: w, kolumna: k });
+                }
+            }
+
+            for (let i = dostepnePozycje.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [dostepnePozycje[i], dostepnePozycje[j]] = [dostepnePozycje[j], dostepnePozycje[i]];
+            }
+
+            const testImg = document.createElement('img');
+            testImg.classList.add('game-img');
+            board.appendChild(testImg);
+            const szerokoscMalzy = testImg.offsetWidth;
+            const wysokoscMalzy = testImg.offsetHeight;
+            board.innerHTML = '';
+
+            const marginesGora = 140; 
+            const dostepnaSzerokosc = window.innerWidth;
+            const dostepnaWysokosc = window.innerHeight - marginesGora - 20;
+
+            const krokX = dostepnaSzerokosc / kolumny;
+            const krokY = dostepnaWysokosc / wiersze;
+
+            for (let i = 0; i < LICZBA_OBRAZKOW; i++) {
+                const img = document.createElement('img');
+                img.src = IMG_CLOSE;
+                img.classList.add('game-img');
+                img.dataset.index = i; 
+
+                const pozycjaWsiatce = dostepnePozycje[i];
+                
+                const pozycjaX = (pozycjaWsiatce.kolumna * krokX) + (krokX - szerokoscMalzy) / 2;
+                const pozycjaY = marginesGora + (pozycjaWsiatce.wiersz * krokY) + (krokY - wysokoscMalzy) / 2;
+
+                img.style.left = Math.floor(pozycjaX) + 'px';
+                img.style.top = Math.floor(pozycjaY) + 'px';
+
+                img.addEventListener('click', () => klikniecieGracza(i));
+
+                board.appendChild(img);
+                elementy.push(img);
+            }
+            
+            nowaGra();
+        }
+
+        function nowaGra() {
+            sekwencja = [];
+            punkty = 0;
+            aktualizujLicznik();
+            nastepnaRunda();
+        }
+
+        function aktualizujLicznik() {
+            scoreText.innerText = `${nazwaGracza} | Punkty: ${punkty} | Czas: ${formatujCzas(lacznyCzasSekundy)} | Rekord: ${rekord}`;
+        }
+
+        function nastepnaRunda() {
+            czyMozaKlikac = false;
+            indeksGracza = 0;
+            statusText.innerText = "Obserwuj...";
+            const losowyIndeks = Math.floor(Math.random() * LICZBA_OBRAZKOW);
+            sekwencja.push(losowyIndeks);
+            setTimeout(odtworzSekwencje, 500); // Szybsze wywołanie sekwencji na start rundy
+        }
+
+        async function odtworzSekwencje() {
+            for (let i = 0; i < sekwencja.length; i++) {
+                const indeksObrazka = sekwencja[i];
+                await podswietlObrazek(indeksObrazka);
+                await czekaj(ODSTEP_MIEDZY_BŁYSKAMI);
+            }
+            czyMozaKlikac = true;
+            statusText.innerText = "Twoja kolej!";
+        }
+
+        function podswietlObrazek(index) {
+            return new Promise(resolve => {
+                const img = elementy[index];
+                if(img) img.src = IMG_OPEN; 
+                odtworzDzwiekiStworka(NUTY[index], false);
+                setTimeout(() => {
+                    if(img) img.src = IMG_CLOSE; 
+                    resolve();
+                }, CZAS_PODSWIETLENIA);
+            });
+        }
+
+        function czekaj(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function klikniecieGracza(indeksKliknietego) {
+            if (!czyMozaKlikac) return; 
+
+            if (indeksKliknietego === sekwencja[indeksGracza]) {
+                if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_OPEN;
+                odtworzDzwiekiStworka(NUTY[indeksKliknietego], false); 
+
+                // Odpowiedź na kliknięcie gracza skrócona do 100 ms dla lepszej responsywności
+                setTimeout(() => {
+                    if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_CLOSE;
+                }, 100);
+
+                indeksGracza++;
+
+                if (indeksGracza === sekwencja.length) {
+                    punkty++; 
+                    if (punkty > rekord) {
+                        rec = punkty; // Poprawka: upewnienie się, że zmienna rekordu jest stabilna
+                        rekord = punkty;
+                        localStorage.setItem('gra_rekord', rekord);
+                    }
+                    aktualizujLicznik();
+                    statusText.innerText = "Świetnie!";
+                    setTimeout(nastepnaRunda, 600); // Szybsze przejście do kolejnej rundy (zamiast 1000ms)
+                }
+            } else {
+                odtworzDzwiekiStworka(0, true); 
+                czyMozaKlikac = false;
+                
+                zatrzymajLicznikCzasu();
+
+                uiContainer.style.display = 'none';
+                board.style.display = 'none';
+                
+                gameoverMsg.innerText = `Twój wynik to: ${punkty} punktów`;
+                gameoverTime.innerText = `Całkowity czas gry: ${formatujCzas(lacznyCzasSekundy)}`;
+                gameoverBest.innerText = `Najwyższy wynik do tej pory: ${rekord}`;
+                gameoverScreen.style.display = 'block';
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (board.style.display === 'block' && elementy.length > 0) {
+                stworzPlansze();
+            }
+        });
+    </script>
+</body>
+</html>
