@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Słodkie Małże - Gra Pamięciowa</title>
+    <title>Słodkie Małże</title>
     <style>
         * {
             box-sizing: border-box;
@@ -40,7 +40,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 90%;
-            max-width: 400px;
+            max-width: 420px;
             background: rgba(255, 235, 240, 0.95); 
             padding: 30px;
             border-radius: 25px; 
@@ -60,7 +60,7 @@
         .modal-screen input {
             width: 100%;
             padding: 12px 15px;
-            margin: 20px 0;
+            margin: 20px 0 10px 0;
             border: 2px solid #ffb6c1;
             border-radius: 15px;
             font-size: 16px;
@@ -165,7 +165,12 @@
 <body>
 
     <div id="start-screen" class="modal-screen">
-        <h2>Witaj w Grze!</h2>
+        <h2>Śpiewające małże!</h2>
+        <p style="font-size: 14px; color: #555; line-height: 1.5; margin: 15px 0;">
+            Powtórz sekwencję dźwięków. Zwróć uwagę, czy dźwięk jest krótki czy długi.<br><br>
+            Jeśli <strong>krótki</strong> – wystarczy kliknąć na właściwą małżę.<br>
+            Jeśli <strong>długi</strong> – należy przytrzymać ją przynajmniej pół sekundy.
+        </p>
         <input type="text" id="player-name" placeholder="Wpisz imię i nazwisko" autocomplete="off">
         <button id="start-btn" class="wide-btn">START</button>
     </div>
@@ -188,11 +193,6 @@
 
     <script>
         const LICZBA_OBRAZKOW = 8; 
-        
-        // TEMPO ZOSTAŁO ZNACZNIE PRZYSPIESZONE
-        const CZAS_PODSWIETLENIA = 300; 
-        const ODSTEP_MIEDZY_BŁYSKAMI = 180; 
-
         const IMG_CLOSE = 'close.png';
         const IMG_OPEN = 'open.png';
 
@@ -225,6 +225,9 @@
         let lacznyCzasSekundy = 0; 
         let licznikInterval = null; 
 
+        let czasWcisniecia = 0;
+        let aktywnyDzwiekMyszki = null;
+
         if (localStorage.getItem('gra_rekord')) {
             rekord = parseInt(localStorage.getItem('gra_rekord'));
         }
@@ -253,8 +256,8 @@
             clearInterval(licznikInterval);
         }
 
-        function odtworzDzwiekiStworka(czestotliwosc, czyBlad = false) {
-            if (!audioCtx) return;
+        function odtworzDzwiekiStworka(czestotliwosc, czyBlad = false, czasTrwania = 0.2) {
+            if (!audioCtx) return null;
             try {
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume();
@@ -267,44 +270,33 @@
                     osc.type = 'sine';
                     osc.frequency.setValueAtTime(300, teraz);
                     osc.frequency.exponentialRampToValueAtTime(80, teraz + 0.3);
-                    
                     glosnosc.gain.setValueAtTime(0.3, teraz);
                     glosnosc.gain.linearRampToValueAtTime(0.001, teraz + 0.3);
-                    
                     osc.connect(glosnosc);
                     glosnosc.connect(audioCtx.destination);
                     osc.start(teraz);
                     osc.stop(teraz + 0.3);
+                    return null;
                 } else {
                     const realOsc = audioCtx.createOscillator();
-                    
                     realOsc.type = 'sine';
                     realOsc.frequency.setValueAtTime(czestotliwosc * 0.6, teraz);
                     realOsc.frequency.exponentialRampToValueAtTime(czestotliwosc, teraz + 0.04);
+                    realOsc.frequency.setValueAtTime(czestotliwosc, teraz + 0.04);
                     
                     glosnosc.gain.setValueAtTime(0.3, teraz);
-                    glosnosc.gain.exponentialRampToValueAtTime(0.001, teraz + 0.15);
-
-                    const dzwoneczek = audioCtx.createOscillator();
-                    const glosnoscDzwonka = audioCtx.createGain();
-                    dzwoneczek.type = 'triangle';
-                    dzwoneczek.frequency.setValueAtTime(czestotliwosc * 2, teraz);
-                    glosnoscDzwonka.gain.setValueAtTime(0.05, teraz);
-                    glosnoscDzwonka.gain.exponentialRampToValueAtTime(0.001, teraz + 0.2);
+                    glosnosc.gain.exponentialRampToValueAtTime(0.001, teraz + czasTrwania);
 
                     realOsc.connect(glosnosc);
                     glosnosc.connect(audioCtx.destination);
-                    
-                    dzwoneczek.connect(glosnoscDzwonka);
-                    glosnoscDzwonka.connect(audioCtx.destination);
-
                     realOsc.start(teraz);
-                    realOsc.stop(teraz + 0.15);
-                    dzwoneczek.start(teraz);
-                    dzwoneczek.stop(teraz + 0.2);
+                    realOsc.stop(teraz + czasTrwania);
+                    
+                    return { osc: realOsc, gain: glosnosc };
                 }
             } catch(e) {
                 console.log("Audio problem:", e);
+                return null;
             }
         }
 
@@ -343,7 +335,6 @@
             elementy = [];
             
             const jestPion = window.innerHeight > window.innerWidth;
-            
             const kolumny = jestPion ? 2 : 4;
             const wiersze = jestPion ? 4 : 2;
             
@@ -380,14 +371,16 @@
                 img.dataset.index = i; 
 
                 const pozycjaWsiatce = dostepnePozycje[i];
-                
                 const pozycjaX = (pozycjaWsiatce.kolumna * krokX) + (krokX - szerokoscMalzy) / 2;
                 const pozycjaY = marginesGora + (pozycjaWsiatce.wiersz * krokY) + (krokY - wysokoscMalzy) / 2;
 
                 img.style.left = Math.floor(pozycjaX) + 'px';
                 img.style.top = Math.floor(pozycjaY) + 'px';
 
-                img.addEventListener('click', () => klikniecieGracza(i));
+                img.addEventListener('mousedown', (e) => { e.preventDefault(); nacisniecieStworka(i); });
+                img.addEventListener('mouseup', (e) => { e.preventDefault(); zwolnienieStworka(i); });
+                img.addEventListener('touchstart', (e) => { e.preventDefault(); nacisniecieStworka(i); });
+                img.addEventListener('touchend', (e) => { e.preventDefault(); zwolnienieStworka(i); });
 
                 board.appendChild(img);
                 elementy.push(img);
@@ -411,30 +404,36 @@
             czyMozaKlikac = false;
             indeksGracza = 0;
             statusText.innerText = "Obserwuj...";
+            
             const losowyIndeks = Math.floor(Math.random() * LICZBA_OBRAZKOW);
-            sekwencja.push(losowyIndeks);
-            setTimeout(odtworzSekwencje, 500); // Szybsze wywołanie sekwencji na start rundy
+            const losowyTyp = Math.random() > 0.5 ? 'dlugi' : 'krotki'; 
+            
+            sekwencja.push({ index: losowyIndeks, typ: losowyTyp });
+            setTimeout(odtworzSekwencje, 600); 
         }
 
         async function odtworzSekwencje() {
             for (let i = 0; i < sekwencja.length; i++) {
-                const indeksObrazka = sekwencja[i];
-                await podswietlObrazek(indeksObrazka);
-                await czekaj(ODSTEP_MIEDZY_BŁYSKAMI);
+                const krok = sekwencja[i];
+                await podswietlObrazek(krok.index, krok.typ);
+                await czekaj(220); 
             }
             czyMozaKlikac = true;
             statusText.innerText = "Twoja kolej!";
         }
 
-        function podswietlObrazek(index) {
+        function podswietlObrazek(index, typ) {
             return new Promise(resolve => {
                 const img = elementy[index];
                 if(img) img.src = IMG_OPEN; 
-                odtworzDzwiekiStworka(NUTY[index], false);
+
+                const czasTrwaniaDwieku = typ === 'dlugi' ? 0.8 : 0.2;
+                odtworzDzwiekiStworka(NUTY[index], false, czasTrwaniaDwieku);
+
                 setTimeout(() => {
                     if(img) img.src = IMG_CLOSE; 
                     resolve();
-                }, CZAS_PODSWIETLENIA);
+                }, typ === 'dlugi' ? 800 : 200);
             });
         }
 
@@ -442,45 +441,73 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-        function klikniecieGracza(indeksKliknietego) {
-            if (!czyMozaKlikac) return; 
+        function nacisniecieStworka(indeksKliknietego) {
+            if (!czyMozaKlikac) return;
+            czasWcisniecia = Date.now(); 
 
-            if (indeksKliknietego === sekwencja[indeksGracza]) {
-                if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_OPEN;
-                odtworzDzwiekiStworka(NUTY[indeksKliknietego], false); 
+            if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_OPEN;
+            
+            // Dźwięk gracza na czas trzymania
+            aktywnyDzwiekMyszki = odtworzDzwiekiStworka(NUTY[indeksKliknietego], false, 2.0);
+        }
 
-                // Odpowiedź na kliknięcie gracza skrócona do 100 ms dla lepszej responsywności
-                setTimeout(() => {
-                    if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_CLOSE;
-                }, 100);
+        function zwolnienieStworka(indeksKliknietego) {
+            if (!czyMozaKlikac || czasWcisniecia === 0) return;
 
-                indeksGracza++;
+            const czasTrzymania = Date.now() - czasWcisniecia;
+            czasWcisniecia = 0; 
 
-                if (indeksGracza === sekwencja.length) {
-                    punkty++; 
-                    if (punkty > rekord) {
-                        rec = punkty; // Poprawka: upewnienie się, że zmienna rekordu jest stabilna
-                        rekord = punkty;
-                        localStorage.setItem('gra_rekord', rekord);
-                    }
-                    aktualizujLicznik();
-                    statusText.innerText = "Świetnie!";
-                    setTimeout(nastepnaRunda, 600); // Szybsze przejście do kolejnej rundy (zamiast 1000ms)
-                }
-            } else {
-                odtworzDzwiekiStworka(0, true); 
-                czyMozaKlikac = false;
-                
-                zatrzymajLicznikCzasu();
-
-                uiContainer.style.display = 'none';
-                board.style.display = 'none';
-                
-                gameoverMsg.innerText = `Twój wynik to: ${punkty} punktów`;
-                gameoverTime.innerText = `Całkowity czas gry: ${formatujCzas(lacznyCzasSekundy)}`;
-                gameoverBest.innerText = `Najwyższy wynik do tej pory: ${rekord}`;
-                gameoverScreen.style.display = 'block';
+            if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_CLOSE;
+            
+            if (aktywnyDzwiekMyszki) {
+                try { aktywnyDzwiekMyszki.gain.gain.setValueAtTime(0.001, audioCtx.currentTime); } catch(e){}
             }
+
+            const krokWSekwencji = sekwencja[indeksGracza];
+
+            if (indeksKliknietego !== krokWSekwencji.index) {
+                przegrana("Kliknąłeś niewłaściwą małżę!");
+                return;
+            }
+
+            // USUNIĘTO RAMY CZASOWE Z GÓRY: Każde przytrzymanie >= 500 ms to po prostu 'dlugi' krok!
+            const faktycznyTypGracza = czasTrzymania >= 500 ? 'dlugi' : 'krotki';
+
+            if (faktycznyTypGracza !== krokWSekwencji.typ) {
+                if (krokWSekwencji.typ === 'dlugi') {
+                    przegrana("Za krótko! Tę małżę trzeba było przytrzymać przynajmniej 0.5 sekundy!");
+                } else {
+                    przegrana("Za długo! Tę małżę należało tylko szybko kliknąć (poniżej 0.5 sekundy)!");
+                }
+                return;
+            }
+
+            indeksGracza++;
+
+            if (indeksGracza === sekwencja.length) {
+                punkty++; 
+                if (punkty > rekord) {
+                    rekord = punkty;
+                    localStorage.setItem('gra_rekord', rekord);
+                }
+                aktualizujLicznik();
+                statusText.innerText = "Świetnie!";
+                setTimeout(nastepnaRunda, 600);
+            }
+        }
+
+        function przegrana(powod) {
+            odtworzDzwiekiStworka(0, true); 
+            czyMozaKlikac = false;
+            zatrzymajLicznikCzasu();
+
+            uiContainer.style.display = 'none';
+            board.style.display = 'none';
+            
+            gameoverMsg.innerHTML = `<span style="font-size:15px; color:#666;">${powod}</span><br><br>Twój wynik to: ${punkty} punktów`;
+            gameoverTime.innerText = `Całkowity czas gry: ${formatujCzas(lacznyCzasSekundy)}`;
+            gameoverBest.innerText = `Najwyższy wynik do tej pory: ${rekord}`;
+            gameoverScreen.style.display = 'block';
         }
 
         window.addEventListener('resize', () => {
