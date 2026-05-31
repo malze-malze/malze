@@ -53,8 +53,9 @@
 
         .modal-screen h2 {
             margin-top: 0;
-            font-size: 26px;
-            color: #4a4a4a;
+            font-size: 24px;
+            color: #d91414;
+            line-height: 1.3;
         }
 
         .modal-screen input {
@@ -146,7 +147,7 @@
             min-height: 80px;
             cursor: pointer;
             border-radius: 18px; 
-            transition: transform 0.1s, top 0.3s ease, left 0.3s ease;
+            transition: transform 0.1s, top 0.6s cubic-bezier(0.25, 1, 0.5, 1), left 0.6s cubic-bezier(0.25, 1, 0.5, 1);
             -webkit-tap-highlight-color: transparent;
             filter: drop-shadow(0px 6px 8px rgba(0,0,0,0.2));
         }
@@ -165,7 +166,7 @@
 <body>
 
     <div id="start-screen" class="modal-screen">
-        <h2>Śpiewające małże!</h2>
+        <h2 style="color: #4a4a4a;">Śpiewające małże!</h2>
         <p style="font-size: 14px; color: #555; line-height: 1.5; margin: 15px 0;">
             Powtórz sekwencję dźwięków. Zwróć uwagę, czy dźwięk jest krótki czy długi.<br><br>
             Jeśli <strong>krótki</strong> – wystarczy kliknąć na właściwą małżę.<br>
@@ -176,10 +177,10 @@
     </div>
 
     <div id="gameover-screen" class="modal-screen" style="display: none;">
-        <h2>Ojej, pomyłka! 😢</h2>
-        <p id="gameover-msg" style="font-size: 18px; margin: 5px 0;"></p>
+        <h2 id="gameover-title">Powód przegranej</h2>
+        <p id="gameover-msg" style="font-size: 18px; margin: 15px 0 5px 0;"></p>
         <p id="gameover-time" style="font-size: 16px; margin: 5px 0; color: #ff1493; font-weight: bold;"></p>
-        <p style="margin: 10px 0 5px 0; font-weight: bold; color: #4a4a4a;">Zagraj ponownie</p>
+        <p id="restart-text" style="margin: 10px 0 5px 0; font-weight: bold; color: #4a4a4a;">Zagraj ponownie</p>
         <button id="restart-btn" class="restart-circle-btn">↻</button>
         <div id="gameover-best" class="best-score-text">Najwyższy wynik: 0</div>
     </div>
@@ -193,6 +194,7 @@
 
     <script>
         const LICZBA_OBRAZKOW = 8; 
+        const LIMIT_SEKWENCJI = 50; 
         const IMG_CLOSE = 'close.png';
         const IMG_OPEN = 'open.png';
 
@@ -203,7 +205,9 @@
         const playerNameInput = document.getElementById('player-name');
         
         const gameoverScreen = document.getElementById('gameover-screen');
+        const gameoverTitle = document.getElementById('gameover-title');
         const restartBtn = document.getElementById('restart-btn');
+        const restartText = document.getElementById('restart-text');
         const gameoverMsg = document.getElementById('gameover-msg');
         const gameoverTime = document.getElementById('gameover-time');
         const gameoverBest = document.getElementById('gameover-best');
@@ -236,6 +240,8 @@
             lacznyCzasSekundy = parseInt(localStorage.getItem('gra_biezacy_czas'));
         }
 
+        uruchomLicznikCzasu();
+
         function formatujCzas(sekundy) {
             const m = Math.floor(sekundy / 60).toString().padStart(2, '0');
             const s = (sekundy % 60).toString().padStart(2, '0');
@@ -256,7 +262,7 @@
             clearInterval(licznikInterval);
         }
 
-        function odtworzDzwiekiStworka(czestotliwosc, czyBlad = false, czasTrwania = 0.2) {
+        function odtworzDzwiekiStworka(czestotliwosc, czyBlad = false, typ = 'krotki') {
             if (!audioCtx) return null;
             try {
                 if (audioCtx.state === 'suspended') {
@@ -279,20 +285,27 @@
                     return null;
                 } else {
                     const realOsc = audioCtx.createOscillator();
-                    realOsc.type = 'sine';
-                    realOsc.frequency.setValueAtTime(czestotliwosc * 0.6, teraz);
-                    realOsc.frequency.exponentialRampToValueAtTime(czestotliwosc, teraz + 0.04);
-                    realOsc.frequency.setValueAtTime(czestotliwosc, teraz + 0.04);
+                    realOsc.type = 'sine'; 
+                    realOsc.frequency.setValueAtTime(czestotliwosc, teraz);
                     
-                    glosnosc.gain.setValueAtTime(0.3, teraz);
-                    glosnosc.gain.exponentialRampToValueAtTime(0.001, teraz + czasTrwania);
-
-                    realOsc.connect(glosnosc);
-                    glosnosc.connect(audioCtx.destination);
-                    realOsc.start(teraz);
-                    realOsc.stop(teraz + czasTrwania);
+                    if (typ === 'dlugi') {
+                        glosnosc.gain.setValueAtTime(0.3, teraz);
+                        glosnosc.gain.setValueAtTime(0.3, teraz + 0.8);
+                        glosnosc.gain.exponentialRampToValueAtTime(0.001, teraz + 1.0);
+                        realOsc.connect(glosnosc);
+                        glosnosc.connect(audioCtx.destination);
+                        realOsc.start(teraz);
+                        realOsc.stop(teraz + 1.0);
+                    } else {
+                        glosnosc.gain.setValueAtTime(0.3, teraz);
+                        glosnosc.gain.exponentialRampToValueAtTime(0.001, teraz + 0.15); 
+                        realOsc.connect(glosnosc);
+                        glosnosc.connect(audioCtx.destination);
+                        realOsc.start(teraz);
+                        realOsc.stop(teraz + 0.15);
+                    }
                     
-                    return { osc: realOsc, gain: glosnosc };
+                    return { osc: realOsc, gain: glosnosc, typDwieku: typ };
                 }
             } catch(e) {
                 console.log("Audio problem:", e);
@@ -309,15 +322,11 @@
 
             let wpisaneImie = playerNameInput.value.trim();
             nazwaGracza = wpisaneImie ? wpisaneImie : "Gracz"; 
-            
-            lacznyCzasSekundy = 0;
-            localStorage.setItem('gra_biezacy_czas', 0);
 
             startScreen.style.display = 'none';
             uiContainer.style.display = 'block';
             board.style.display = 'block';
             
-            uruchomLicznikCzasu();
             stworzPlansze();
         });
 
@@ -376,6 +385,9 @@
 
                 img.style.left = Math.floor(pozycjaX) + 'px';
                 img.style.top = Math.floor(pozycjaY) + 'px';
+                
+                img.dataset.wiersz = pozycjaWsiatce.wiersz;
+                img.dataset.kolumna = pozycjaWsiatce.kolumna;
 
                 img.addEventListener('mousedown', (e) => { e.preventDefault(); nacisniecieStworka(i); });
                 img.addEventListener('mouseup', (e) => { e.preventDefault(); zwolnienieStworka(i); });
@@ -405,18 +417,44 @@
             indeksGracza = 0;
             statusText.innerText = "Obserwuj...";
             
-            const losowyIndeks = Math.floor(Math.random() * LICZBA_OBRAZKOW);
-            const losowyTyp = Math.random() > 0.5 ? 'dlugi' : 'krotki'; 
+            const ileDodac = sekwencja.length === 0 ? 3 : 1;
             
-            sekwencja.push({ index: losowyIndeks, typ: losowyTyp });
-            setTimeout(odtworzSekwencje, 600); 
+            for (let r = 0; r < ileDodac; r++) {
+                let losowyIndeks = 0;
+                let losowyTyp = 'krotki';
+                let poprawne = false;
+
+                while(!poprawne) {
+                    losowyIndeks = Math.floor(Math.random() * LICZBA_OBRAZKOW);
+                    losowyTyp = Math.random() > 0.5 ? 'dlugi' : 'krotki';
+                    poprawne = true;
+
+                    if (sekwencja.length >= 2) {
+                        const ost1Idx = sekwencja[sekwencja.length - 1].index;
+                        const ost2Idx = sekwencja[sekwencja.length - 2].index;
+                        if (losowyIndeks === ost1Idx && losowyIndeks === ost2Idx) {
+                            poprawne = false;
+                        }
+                        
+                        const ost1Typ = sekwencja[sekwencja.length - 1].typ;
+                        const ost2Typ = sekwencja[sekwencja.length - 2].typ;
+                        if (losowyTyp === ost1Typ && losowyTyp === ost2Typ) {
+                            poprawne = false;
+                        }
+                    }
+                }
+
+                sekwencja.push({ index: losowyIndeks, typ: losowyTyp });
+            }
+            
+            setTimeout(odtworzSekwencje, 700); 
         }
 
         async function odtworzSekwencje() {
             for (let i = 0; i < sekwencja.length; i++) {
                 const krok = sekwencja[i];
                 await podswietlObrazek(krok.index, krok.typ);
-                await czekaj(220); 
+                await czekaj(200); 
             }
             czyMozaKlikac = true;
             statusText.innerText = "Twoja kolej!";
@@ -427,13 +465,12 @@
                 const img = elementy[index];
                 if(img) img.src = IMG_OPEN; 
 
-                const czasTrwaniaDwieku = typ === 'dlugi' ? 0.8 : 0.2;
-                odtworzDzwiekiStworka(NUTY[index], false, czasTrwaniaDwieku);
+                odtworzDzwiekiStworka(NUTY[index], false, typ);
 
                 setTimeout(() => {
                     if(img) img.src = IMG_CLOSE; 
                     resolve();
-                }, typ === 'dlugi' ? 800 : 200);
+                }, typ === 'dlugi' ? 1000 : 250);
             });
         }
 
@@ -447,8 +484,9 @@
 
             if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_OPEN;
             
-            // Dźwięk gracza na czas trzymania
-            aktywnyDzwiekMyszki = odtworzDzwiekiStworka(NUTY[indeksKliknietego], false, 2.0);
+            const aktualnyKrok = sekwencja[indeksGracza];
+            const oczekiwanyTyp = (aktualnyKrok && aktualnyKrok.index === indeksKliknietego) ? aktualnyKrok.typ : 'krotki';
+            aktywnyDzwiekMyszki = odtworzDzwiekiStworka(NUTY[indeksKliknietego], false, oczekiwanyTyp);
         }
 
         function zwolnienieStworka(indeksKliknietego) {
@@ -460,24 +498,25 @@
             if(elementy[indeksKliknietego]) elementy[indeksKliknietego].src = IMG_CLOSE;
             
             if (aktywnyDzwiekMyszki) {
-                try { aktywnyDzwiekMyszki.gain.gain.setValueAtTime(0.001, audioCtx.currentTime); } catch(e){}
+                try { 
+                    aktywnyDzwiekMyszki.gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05); 
+                } catch(e){}
             }
 
             const krokWSekwencji = sekwencja[indeksGracza];
 
             if (indeksKliknietego !== krokWSekwencji.index) {
-                przegrana("Kliknąłeś niewłaściwą małżę!");
+                przegrana("Kliknąłeś niewłaściwą małżę! 😢");
                 return;
             }
 
-            // USUNIĘTO RAMY CZASOWE Z GÓRY: Każde przytrzymanie >= 500 ms to po prostu 'dlugi' krok!
             const faktycznyTypGracza = czasTrzymania >= 500 ? 'dlugi' : 'krotki';
 
             if (faktycznyTypGracza !== krokWSekwencji.typ) {
                 if (krokWSekwencji.typ === 'dlugi') {
-                    przegrana("Za krótko! Tę małżę trzeba było przytrzymać przynajmniej 0.5 sekundy!");
+                    przegrana("Za krótko! Trzeba przytrzymać 0,5 sekundy!");
                 } else {
-                    przegrana("Za długo! Tę małżę należało tylko szybko kliknąć (poniżej 0.5 sekundy)!");
+                    przegrana("Za długo! Tę małżę należało tylko szybko kliknąć!");
                 }
                 return;
             }
@@ -492,8 +531,117 @@
                 }
                 aktualizujLicznik();
                 statusText.innerText = "Świetnie!";
-                setTimeout(nastepnaRunda, 600);
+                
+                const aktualnaLiczbaDwiekow = sekwencja.length;
+
+                if (aktualnaLiczbaDwiekow >= LIMIT_SEKWENCJI) {
+                    wygranaRozwalenieSystemu();
+                    return;
+                }
+
+                if (aktualnaLiczbaDwiekow >= 4 && aktualnaLiczbaDwiekow % 2 === 0) {
+                    czyMozaKlikac = false;
+                    setTimeout(async () => {
+                        statusText.innerText = "Uwaga! Zamiana miejsc!";
+                        await wykonajZamianeMiejsc();
+                        setTimeout(nastepnaRunda, 800);
+                    }, 600);
+                } else {
+                    setTimeout(nastepnaRunda, 600);
+                }
             }
+        }
+
+        function wykonajZamianeMiejsc() {
+            return new Promise(resolve => {
+                const unikalneUzyteIndeksy = [...new Set(sekwencja.map(krok => krok.index))];
+                
+                let idx1, idx2;
+                let znalezionoPare = false;
+                let proby = 0;
+                
+                if (unikalneUzyteIndeksy.length < 2) {
+                    while(unikalneUzyteIndeksy.length < 8) {
+                        let zapasowy = Math.floor(Math.random() * LICZBA_OBRAZKOW);
+                        if(!unikalneUzyteIndeksy.includes(zapasowy)) unikalneUzyteIndeksy.push(zapasowy);
+                    }
+                }
+
+                while (!znalezionoPare && proby < 150) {
+                    proby++;
+                    const los1 = Math.floor(Math.random() * unikalneUzyteIndeksy.length);
+                    const los2 = Math.floor(Math.random() * unikalneUzyteIndeksy.length);
+                    
+                    if (los1 !== los2) {
+                        idx1 = unikalneUzyteIndeksy[los1];
+                        idx2 = unikalneUzyteIndeksy[los2];
+                        
+                        const img1 = elementy[idx1];
+                        const img2 = elementy[idx2];
+                        
+                        const w1 = parseInt(img1.dataset.wiersz);
+                        const k1 = parseInt(img1.dataset.kolumna);
+                        const w2 = parseInt(img2.dataset.wiersz);
+                        const k2 = parseInt(img2.dataset.kolumna);
+                        
+                        const odleglosc = Math.abs(w1 - w2) + Math.abs(k1 - k2);
+                        if (odleglosc > 1) {
+                            znalezionoPare = true;
+                        }
+                    }
+                }
+                
+                if (!znalezionoPare) {
+                    idx1 = unikalneUzyteIndeksy[0];
+                    idx2 = unikalneUzyteIndeksy[1];
+                }
+                
+                const img1 = elementy[idx1];
+                const img2 = elementy[idx2];
+                
+                const t1 = img1.style.top;
+                const l1 = img1.style.left;
+                const t2 = img2.style.top;
+                const l2 = img2.style.left;
+                
+                const w1 = img1.dataset.wiersz;
+                const k1 = img1.dataset.kolumna;
+                const w2 = img2.dataset.wiersz;
+                const k2 = img2.dataset.kolumna;
+                
+                img1.style.top = t2;
+                img1.style.left = l2;
+                img2.style.top = t1;
+                img2.style.left = l1;
+                
+                img1.dataset.wiersz = w2;
+                img1.dataset.kolumna = k2;
+                img2.dataset.wiersz = w1;
+                img2.dataset.kolumna = k1;
+                
+                setTimeout(() => {
+                    resolve();
+                }, 600); 
+            });
+        }
+
+        function wygranaRozwalenieSystemu() {
+            czyMozaKlikac = false;
+            zatrzymajLicznikCzasu();
+
+            uiContainer.style.display = 'none';
+            board.style.display = 'none';
+            
+            gameoverTitle.style.color = "#ff00ff";
+            gameoverTitle.innerText = "🏆 SZTOS! 🏆";
+            gameoverMsg.innerHTML = `<span style="font-size:22px; color:#ff00ff; font-weight:bold; display:block; margin-bottom:15px;">ŁAŁAŁIŁA SYSTEM ROZJEBANY</span>Gratulacje! ŁAŁAŁIŁA SYSTEM ROZJEBANY ${LIMIT_SEKWENCJI} sekwencji!`;
+            gameoverTime.innerText = `Twój całkowity cza: ${formatujCzas(lacznyCzasSekundy)}`;
+            gameoverBest.innerText = `Twój rekord: ${rekord}`;
+            
+            restartText.style.display = "none";
+            restartBtn.style.display = "none";
+            
+            gameoverScreen.style.display = 'block';
         }
 
         function przegrana(powod) {
@@ -504,8 +652,13 @@
             uiContainer.style.display = 'none';
             board.style.display = 'none';
             
-            gameoverMsg.innerHTML = `<span style="font-size:15px; color:#666;">${powod}</span><br><br>Twój wynik to: ${punkty} punktów`;
-            gameoverTime.innerText = `Całkowity czas gry: ${formatujCzas(lacznyCzasSekundy)}`;
+            gameoverTitle.style.color = "#d91414";
+            gameoverTitle.innerText = powod; // Powód ląduje jako nagłówek h2
+            restartText.style.display = "block";
+            restartBtn.style.display = "inline-flex";
+
+            gameoverMsg.innerHTML = `Twój wynik w tej rundzie: <strong>${punkty}</strong> punktów`;
+            gameoverTime.innerText = `Całkowity czas: ${formatujCzas(lacznyCzasSekundy)}`;
             gameoverBest.innerText = `Najwyższy wynik do tej pory: ${rekord}`;
             gameoverScreen.style.display = 'block';
         }
